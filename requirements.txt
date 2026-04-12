@@ -1,0 +1,18 @@
+# Core SDG pipeline
+distilabel
+python-dotenv
+openai
+pydantic
+
+# Deduplication and semantic similarity checks
+datasketch==1.5.9
+faiss-cpu
+sentence-transformers
+
+# Phase 4 classification training on Vast.ai
+unsloth
+trl
+transformers
+datasets
+accelerate
+bitsandbytes

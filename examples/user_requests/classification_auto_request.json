@@ -1,0 +1,29 @@
+{
+  "request_id": "demo-thai-classification-auto-001",
+  "task_type": "classification",
+  "task_description": "Classify Thai legal document text into the correct document category. Return only one label from the labels present in the seed dataset.",
+  "synthetic_target_count": 1800,
+  "slm_model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "config_mode": "auto",
+  "seed_data": {
+    "type": "file",
+    "path": "data/raw/thai-text-classification-seed-data.json",
+    "format": "json",
+    "text_field": "text",
+    "label_field": "label"
+  },
+  "training": {
+    "backend": "unsloth",
+    "method": "qlora"
+  },
+  "auto_config": {
+    "controller": "oumi_style",
+    "tuning_budget": "small_budget",
+    "max_trials": 6,
+    "primary_objective": "macro_f1"
+  },
+  "manual_config": null,
+  "outputs": {
+    "run_root": "runs"
+  }
+}
