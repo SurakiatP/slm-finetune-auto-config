@@ -20,3 +20,4 @@ classification_sdg_edit_promptV2.py
 *.ipynb
 *.toml
 TASK_CHECKPOINT.md
+*.log

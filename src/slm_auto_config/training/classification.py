@@ -7,6 +7,7 @@ Phase 1-3 SFT JSONL files to a single-GPU Unsloth training run.
 from __future__ import annotations
 
 import json
+import inspect
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -208,11 +209,11 @@ def run_unsloth_classification_training(config: ClassificationTrainConfig) -> di
     """Run real Unsloth SFT training. Use this on a CUDA machine, such as Vast.ai."""
     _validate_common_config(config)
 
+    from unsloth import FastLanguageModel
+    from unsloth.chat_templates import train_on_responses_only
     from datasets import load_dataset
     from transformers import TrainingArguments
     from trl import SFTTrainer
-    from unsloth import FastLanguageModel
-    from unsloth.chat_templates import train_on_responses_only
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=config.model_id,
@@ -267,14 +268,14 @@ def run_unsloth_classification_training(config: ClassificationTrainConfig) -> di
         seed=config.training.seed,
         report_to="none",
     )
-    trainer = SFTTrainer(
+    trainer = _build_sft_trainer(
+        SFTTrainer,
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
-        dataset_text_field="text",
+        training_args=training_args,
         max_seq_length=config.max_seq_length,
-        args=training_args,
     )
     if config.response_only_training:
         trainer = train_on_responses_only(
@@ -297,6 +298,36 @@ def run_unsloth_classification_training(config: ClassificationTrainConfig) -> di
         "metrics_path": metrics_path.as_posix(),
         "metrics": metrics,
     }
+
+
+def _build_sft_trainer(
+    sft_trainer_class: Any,
+    *,
+    model: Any,
+    tokenizer: Any,
+    train_dataset: Any,
+    eval_dataset: Any,
+    training_args: Any,
+    max_seq_length: int,
+) -> Any:
+    """Build TRL SFTTrainer across older and newer constructor signatures."""
+    signature = inspect.signature(sft_trainer_class)
+    parameters = signature.parameters
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+        "args": training_args,
+    }
+    if "tokenizer" in parameters:
+        kwargs["tokenizer"] = tokenizer
+    elif "processing_class" in parameters:
+        kwargs["processing_class"] = tokenizer
+    if "dataset_text_field" in parameters:
+        kwargs["dataset_text_field"] = "text"
+    if "max_seq_length" in parameters:
+        kwargs["max_seq_length"] = max_seq_length
+    return sft_trainer_class(**kwargs)
 
 
 def _messages_to_training_text(tokenizer: Any, messages: list[dict[str, str]]) -> str:
