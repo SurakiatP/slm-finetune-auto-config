@@ -21,3 +21,4 @@ classification_sdg_edit_promptV2.py
 *.toml
 TASK_CHECKPOINT.md
 *.log
+vast_ssh_guide.md
