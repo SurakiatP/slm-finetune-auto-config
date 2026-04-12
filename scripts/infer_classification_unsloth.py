@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 
@@ -35,6 +36,11 @@ def main() -> None:
         default=10,
         help="Number of test samples to run through inference.",
     )
+    parser.add_argument(
+        "--adapter-path",
+        default="",
+        help="Optional trained adapter/model path. Defaults to output_dir in train_config.json.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -43,6 +49,8 @@ def main() -> None:
         train_config,
         sample_count=args.sample_count,
     )
+    if args.adapter_path:
+        inference_config = replace(inference_config, adapter_path=args.adapter_path)
     if args.dry_run:
         result = dry_run_inference_config(inference_config)
     else:

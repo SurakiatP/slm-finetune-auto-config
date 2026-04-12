@@ -252,7 +252,11 @@ def _validate_inference_files(
         if not Path(path).is_file():
             raise FileNotFoundError(path)
     if require_adapter and not Path(config.adapter_path).exists():
-        raise FileNotFoundError(config.adapter_path)
+        raise FileNotFoundError(
+            f"Adapter/model path not found: {config.adapter_path}. "
+            "Run Phase 4 training first in the same workspace, sync the model directory, "
+            "or pass --adapter-path to scripts/infer_classification_unsloth.py."
+        )
     if config.sample_count <= 0:
         raise ValueError("sample_count must be greater than 0.")
     if config.max_new_tokens <= 0:
