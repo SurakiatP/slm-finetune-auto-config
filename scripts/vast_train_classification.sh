@@ -13,6 +13,12 @@ export PYTHONPATH="${PYTHONPATH:-src}"
 if [[ "$MODE" == "--train" ]]; then
   LOG_PATH="$LOG_DIR/phase4_train_$TIMESTAMP.log"
   python -B scripts/train_classification_unsloth.py --config "$CONFIG_PATH" 2>&1 | tee "$LOG_PATH"
+elif [[ "$MODE" == "--infer" ]]; then
+  LOG_PATH="$LOG_DIR/phase4_infer_$TIMESTAMP.log"
+  python -B scripts/infer_classification_unsloth.py --config "$CONFIG_PATH" 2>&1 | tee "$LOG_PATH"
+elif [[ "$MODE" == "--infer-dry-run" ]]; then
+  LOG_PATH="$LOG_DIR/phase4_infer_dry_run_$TIMESTAMP.log"
+  python -B scripts/infer_classification_unsloth.py --config "$CONFIG_PATH" --dry-run 2>&1 | tee "$LOG_PATH"
 else
   LOG_PATH="$LOG_DIR/phase4_dry_run_$TIMESTAMP.log"
   python -B scripts/train_classification_unsloth.py --config "$CONFIG_PATH" --dry-run 2>&1 | tee "$LOG_PATH"
