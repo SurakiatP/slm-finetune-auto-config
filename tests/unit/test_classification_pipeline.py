@@ -14,8 +14,6 @@ class ClassificationPipelineTest(unittest.TestCase):
             task_type="classification",
             task_description="Classify text.",
             synthetic_target_count=10,
-            slm_model="Qwen/Qwen2.5-0.5B-Instruct",
-            config_mode="auto",
             seed_data=SeedDataSource(
                 type="file",
                 path="data/raw/thai-text-classification-seed-data.json",

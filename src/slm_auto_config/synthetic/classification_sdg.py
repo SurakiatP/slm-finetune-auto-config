@@ -1,7 +1,6 @@
 """Refactored classification synthetic data generation pipeline.
 
-This module keeps the same external contract as `classification_sdg_edit_promptV2.py`:
-input seed records use `text` and `label`, and accepted synthetic records are
+Input seed records use `text` and `label`, and accepted synthetic records are
 written as JSON records with `text` and `label`.
 """
 

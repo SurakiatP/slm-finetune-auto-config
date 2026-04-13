@@ -1,4 +1,4 @@
-"""Request and response schemas for the product API."""
+"""Request schemas for the Phase 1-3 classification pipeline."""
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -17,35 +17,13 @@ class SeedDataSource:
 
 
 @dataclass(frozen=True)
-class TrainingPreference:
-    """User-facing training preference."""
-
-    backend: str = "unsloth"
-    method: str = "qlora"
-
-
-@dataclass(frozen=True)
-class AutoConfigPreference:
-    """Auto hyperparameter tuning preference."""
-
-    controller: str = "oumi_style"
-    tuning_budget: str = "small_budget"
-    max_trials: int = 6
-    primary_objective: str = "task_metric"
-
-
-@dataclass(frozen=True)
 class FinetuneRequest:
-    """User-facing fine-tuning request."""
+    """User request fields needed by the retained Phase 1-3 flow."""
 
     request_id: str
     task_type: str
     task_description: str
     synthetic_target_count: int
-    slm_model: str
-    config_mode: str
     seed_data: SeedDataSource
-    training: TrainingPreference = field(default_factory=TrainingPreference)
-    auto_config: AutoConfigPreference | None = field(default_factory=AutoConfigPreference)
-    manual_config: dict[str, Any] | None = None
+    slm_model: str | None = None
     outputs: dict[str, Any] = field(default_factory=lambda: {"run_root": "runs"})

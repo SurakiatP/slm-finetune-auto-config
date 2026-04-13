@@ -23,3 +23,4 @@ TASK_CHECKPOINT.md
 *.log
 vast_ssh_guide.md
 vast_logs/
+*.md
