@@ -113,6 +113,7 @@ def main() -> None:
         load_in_4bit=LOAD_IN_4BIT,
     )
     normalize_qwen_tokenizer(tokenizer)
+    sync_model_special_tokens(model, tokenizer)
     model = FastLanguageModel.get_peft_model(
         model,
         r=LORA_RANK,
@@ -367,20 +368,28 @@ def normalize_qwen_tokenizer(tokenizer) -> None:
     """Use real Qwen tokens instead of TRL placeholder tokens."""
     im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
     unk_id = getattr(tokenizer, "unk_token_id", None)
-    if tokenizer.eos_token is None or tokenizer.eos_token_id in {None, unk_id}:
-        if im_end_id is not None and im_end_id != unk_id:
-            tokenizer.eos_token = "<|im_end|>"
-        else:
-            raise ValueError("Could not identify a valid Qwen EOS token.")
+    if im_end_id is None or im_end_id == unk_id:
+        raise ValueError("Could not identify a valid Qwen EOS token.")
 
-    if tokenizer.pad_token is None or tokenizer.pad_token_id in {None, unk_id}:
-        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.eos_token = "<|im_end|>"
+    tokenizer.pad_token = tokenizer.eos_token
 
     print(
         "tokenizer special tokens: "
         f"eos={tokenizer.eos_token!r} ({tokenizer.eos_token_id}), "
         f"pad={tokenizer.pad_token!r} ({tokenizer.pad_token_id})"
     )
+
+
+def sync_model_special_tokens(model, tokenizer) -> None:
+    """Keep model/generation config aligned with the tokenizer before TRL sees it."""
+    for config in (getattr(model, "config", None), getattr(model, "generation_config", None)):
+        if config is None:
+            continue
+        if hasattr(config, "eos_token_id"):
+            config.eos_token_id = tokenizer.eos_token_id
+        if hasattr(config, "pad_token_id"):
+            config.pad_token_id = tokenizer.pad_token_id
 
 
 def to_text_rows(records: list[dict[str, Any]], tokenizer) -> list[dict[str, str]]:
@@ -441,6 +450,12 @@ def build_trainer(
     DataCollatorForSeq2Seq,
 ):
     sft_config = make_sft_config(SFTConfig, tokenizer)
+    ensure_sft_config_special_tokens(sft_config, tokenizer)
+    print(
+        "SFTConfig special tokens: "
+        f"eos={getattr(sft_config, 'eos_token', None)!r}, "
+        f"pad={getattr(sft_config, 'pad_token', None)!r}"
+    )
     trainer_kwargs = {
         "model": model,
         "train_dataset": train_dataset,
@@ -513,6 +528,13 @@ def make_sft_config(SFTConfig, tokenizer):
         return SFTConfig(**kwargs)
     filtered = {key: value for key, value in kwargs.items() if key in params}
     return SFTConfig(**filtered)
+
+
+def ensure_sft_config_special_tokens(sft_config, tokenizer) -> None:
+    """Patch TRL defaults that may otherwise use '<EOS_TOKEN>' placeholders."""
+    for attr in ("eos_token", "pad_token"):
+        if hasattr(sft_config, attr):
+            setattr(sft_config, attr, getattr(tokenizer, attr))
 
 
 def run_label_score_evaluation(
