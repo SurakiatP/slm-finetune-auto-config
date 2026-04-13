@@ -44,7 +44,7 @@ VALIDATION_JSONL = INPUT_DIR / "validation.jsonl"
 TEST_JSONL = INPUT_DIR / "test.jsonl"
 PROMPT_TEMPLATE_JSON = INPUT_DIR / "classification_prompt_template.json"
 
-MODEL_ID = "unsloth/Qwen3-4B"
+MODEL_ID = "unsloth/Qwen3-4B-unsloth-bnb-4bit"
 MAX_SEQ_LENGTH = 2048
 LOAD_IN_4BIT = True
 
@@ -96,8 +96,14 @@ def main() -> None:
     print(json.dumps(config, ensure_ascii=False, indent=2))
 
     print("\n=== Loading training libraries ===")
-    FastLanguageModel, Dataset, SFTConfig, SFTTrainer, DataCollatorForSeq2Seq = import_training_libs()
-    from unsloth.chat_templates import train_on_responses_only
+    (
+        FastLanguageModel,
+        train_on_responses_only,
+        Dataset,
+        SFTConfig,
+        SFTTrainer,
+        DataCollatorForSeq2Seq,
+    ) = import_training_libs()
 
     print("\n=== Loading model/tokenizer ===")
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -106,6 +112,7 @@ def main() -> None:
         dtype=None,
         load_in_4bit=LOAD_IN_4BIT,
     )
+    normalize_qwen_tokenizer(tokenizer)
     model = FastLanguageModel.get_peft_model(
         model,
         r=LORA_RANK,
@@ -343,16 +350,37 @@ def build_hardcoded_config() -> dict[str, Any]:
 
 def import_training_libs():
     try:
+        from unsloth import FastLanguageModel
+        from unsloth.chat_templates import train_on_responses_only
         from datasets import Dataset
         from transformers import DataCollatorForSeq2Seq
         from trl import SFTConfig, SFTTrainer
-        from unsloth import FastLanguageModel
     except ImportError as exc:
         raise SystemExit(
             "Missing training dependencies. On Vast.ai, install first:\n"
             "pip install unsloth trl transformers datasets accelerate bitsandbytes scikit-learn pandas"
         ) from exc
-    return FastLanguageModel, Dataset, SFTConfig, SFTTrainer, DataCollatorForSeq2Seq
+    return FastLanguageModel, train_on_responses_only, Dataset, SFTConfig, SFTTrainer, DataCollatorForSeq2Seq
+
+
+def normalize_qwen_tokenizer(tokenizer) -> None:
+    """Use real Qwen tokens instead of TRL placeholder tokens."""
+    im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
+    unk_id = getattr(tokenizer, "unk_token_id", None)
+    if tokenizer.eos_token is None or tokenizer.eos_token_id in {None, unk_id}:
+        if im_end_id is not None and im_end_id != unk_id:
+            tokenizer.eos_token = "<|im_end|>"
+        else:
+            raise ValueError("Could not identify a valid Qwen EOS token.")
+
+    if tokenizer.pad_token is None or tokenizer.pad_token_id in {None, unk_id}:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    print(
+        "tokenizer special tokens: "
+        f"eos={tokenizer.eos_token!r} ({tokenizer.eos_token_id}), "
+        f"pad={tokenizer.pad_token!r} ({tokenizer.pad_token_id})"
+    )
 
 
 def to_text_rows(records: list[dict[str, Any]], tokenizer) -> list[dict[str, str]]:
@@ -412,7 +440,7 @@ def build_trainer(
     SFTTrainer,
     DataCollatorForSeq2Seq,
 ):
-    sft_config = make_sft_config(SFTConfig)
+    sft_config = make_sft_config(SFTConfig, tokenizer)
     trainer_kwargs = {
         "model": model,
         "train_dataset": train_dataset,
@@ -434,7 +462,7 @@ def build_trainer(
     return SFTTrainer(**trainer_kwargs)
 
 
-def make_sft_config(SFTConfig):
+def make_sft_config(SFTConfig, tokenizer):
     import torch
 
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
@@ -477,8 +505,11 @@ def make_sft_config(SFTConfig):
         kwargs["max_seq_length"] = MAX_SEQ_LENGTH
     elif "max_length" in params:
         kwargs["max_length"] = MAX_SEQ_LENGTH
+    accepts_extra_kwargs = any(param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values())
+    if "eos_token" in params or accepts_extra_kwargs:
+        kwargs["eos_token"] = tokenizer.eos_token
 
-    if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()):
+    if accepts_extra_kwargs:
         return SFTConfig(**kwargs)
     filtered = {key: value for key, value in kwargs.items() if key in params}
     return SFTConfig(**filtered)
